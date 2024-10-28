@@ -2,16 +2,19 @@
 
 project ("calc")
 
+list(APPEND CMAKE_PREFIX_PATH "/home/lin17/workspace/project/llvm_install")
 find_package(LLVM REQUIRED CONFIG)
 message("Found LLVM ${LLVM_PACKAGE_VERSION}, build type ${LLVM_BUILD_TYPE}")
 list(APPEND CMAKE_MODULE_PATH ${LLVM_DIR})
 include(DetermineGCCCompatible)
-include(ChooseMSVCCRT)
+if (MSVC)
+	include(ChooseMSVCCRT)
+endif()
 
 separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
 add_definitions(${LLVM_DEFINITIONS_LIST})
 include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
-llvm_map_components_to_libnames(llvm_libs Core)
+llvm_map_components_to_libnames(llvm_libs Core Support)
 
 if(LLVM_COMPILER_IS_GCC_COMPATIBLE)
   if(NOT LLVM_ENABLE_RTTI)
