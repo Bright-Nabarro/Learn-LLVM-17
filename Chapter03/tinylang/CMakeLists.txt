@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.20.0)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(Tinylang)
 
+  set(CMAKE_PREFIX_PATH /home/lin17/workspace/project/llvm_install)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
   find_package(LLVM REQUIRED HINTS "${LLVM_CMAKE_PATH}")
   list(APPEND CMAKE_MODULE_PATH ${LLVM_DIR})
 
@@ -35,3 +37,10 @@ include_directories(BEFORE
 
 add_subdirectory(lib)
 add_subdirectory(tools)
+
+add_custom_target(cp_compile_commands ALL
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			${CMAKE_BINARY_DIR}/compile_commands.json
+			${CMAKE_SOURCE_DIR}/compile_commands.json
+	DEPENDS ${CMAKE_BINARY_DIR}/compile_commands.json
+)
