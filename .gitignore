@@ -33,3 +33,5 @@ build/
 bin/
 expr
 *.o
+compile_commands.json
+.cache/
