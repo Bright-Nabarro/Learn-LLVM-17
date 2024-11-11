@@ -5,52 +5,59 @@
 
 using namespace tinylang;
 
-void CGProcedure::writeLocalVariable(llvm::BasicBlock *BB,
-                                     Decl *Decl,
-                                     llvm::Value *Val) {
-  assert(BB && "Basic block is nullptr");
-  assert(
-      (llvm::isa<VariableDeclaration>(Decl) ||
-       llvm::isa<FormalParameterDeclaration>(Decl)) &&
-      "Declaration must be variable or formal parameter");
-  assert(Val && "Value is nullptr");
-  CurrentDef[BB].Defs[Decl] = Val;
+void CGProcedure::writeLocalVariable(llvm::BasicBlock* BB, Decl* Decl,
+									 llvm::Value* Val)
+{
+	assert(BB && "Basic block is nullptr");
+	assert((llvm::isa<VariableDeclaration>(Decl) ||
+			llvm::isa<FormalParameterDeclaration>(Decl)) &&
+		   "Declaration must be variable or formal parameter");
+	assert(Val && "Value is nullptr");
+
+	CurrentDef[BB].Defs[Decl] = Val;
 }
 
-llvm::Value *
-CGProcedure::readLocalVariable(llvm::BasicBlock *BB,
-                               Decl *Decl) {
-  assert(BB && "Basic block is nullptr");
-  assert(
-      (llvm::isa<VariableDeclaration>(Decl) ||
-       llvm::isa<FormalParameterDeclaration>(Decl)) &&
-      "Declaration must be variable or formal parameter");
-  auto Val = CurrentDef[BB].Defs.find(Decl);
-  if (Val != CurrentDef[BB].Defs.end())
-    return Val->second;
-  return readLocalVariableRecursive(BB, Decl);
+llvm::Value* CGProcedure::readLocalVariable(llvm::BasicBlock* BB, Decl* Decl)
+{
+	assert(BB && "Basic block is nullptr");
+	assert((llvm::isa<VariableDeclaration>(Decl) ||
+			llvm::isa<FormalParameterDeclaration>(Decl)) &&
+		   "Declaration must be variable or formal parameter");
+	
+	//如果变量不在此块内，调用Recursive函数
+	auto Val = CurrentDef[BB].Defs.find(Decl);
+	if (Val != CurrentDef[BB].Defs.end())
+		return Val->second;
+	return readLocalVariableRecursive(BB, Decl);
 }
 
-llvm::Value *CGProcedure::readLocalVariableRecursive(
-    llvm::BasicBlock *BB, Decl *Decl) {
-  llvm::Value *Val = nullptr;
-  if (!CurrentDef[BB].Sealed) {
-    // Add incomplete phi for variable.
-    llvm::PHINode *Phi = addEmptyPhi(BB, Decl);
-    CurrentDef[BB].IncompletePhis[Phi] = Decl;
-    Val = Phi;
-  } else if (auto *PredBB = BB->getSinglePredecessor()) {
-    // Only one predecessor.
-    Val = readLocalVariable(PredBB, Decl);
-  } else {
-    // Create empty phi instruction to break potential
-    // cycles.
-    llvm::PHINode *Phi = addEmptyPhi(BB, Decl);
-    writeLocalVariable(BB, Decl, Phi);
-    Val = addPhiOperands(BB, Decl, Phi);
-  }
-  writeLocalVariable(BB, Decl, Val);
-  return Val;
+llvm::Value* CGProcedure::readLocalVariableRecursive(llvm::BasicBlock* BB,
+													 Decl* Decl)
+{
+	llvm::Value* Val = nullptr;
+	//这里的密封由emitStmt决定
+	if (!CurrentDef[BB].Sealed)
+	{
+		// Add incomplete phi for variable.
+		llvm::PHINode* Phi = addEmptyPhi(BB, Decl);
+		CurrentDef[BB].IncompletePhis[Phi] = Decl;
+		Val = Phi;
+	}
+	else if (auto* PredBB = BB->getSinglePredecessor())
+	{
+		// Only one predecessor.
+		Val = readLocalVariable(PredBB, Decl);
+	}
+	else
+	{
+		// Create empty phi instruction to break potential
+		// cycles.
+		llvm::PHINode* Phi = addEmptyPhi(BB, Decl);
+		writeLocalVariable(BB, Decl, Phi);
+		Val = addPhiOperands(BB, Decl, Phi);
+	}
+	writeLocalVariable(BB, Decl, Val);
+	return Val;
 }
 
 llvm::PHINode *
@@ -62,12 +69,12 @@ CGProcedure::addEmptyPhi(llvm::BasicBlock *BB, Decl *Decl) {
                                      &BB->front());
 }
 
-llvm::Value *CGProcedure::addPhiOperands(
-    llvm::BasicBlock *BB, Decl *Decl, llvm::PHINode *Phi) {
-  for (auto *PredBB : llvm::predecessors(BB))
-    Phi->addIncoming(readLocalVariable(PredBB, Decl),
-                     PredBB);
-  return optimizePhi(Phi);
+llvm::Value* CGProcedure::addPhiOperands(llvm::BasicBlock* BB, Decl* Decl,
+										 llvm::PHINode* Phi)
+{
+	for (auto* PredBB : llvm::predecessors(BB))
+		Phi->addIncoming(readLocalVariable(PredBB, Decl), PredBB);
+	return optimizePhi(Phi);
 }
 
 llvm::Value *CGProcedure::optimizePhi(llvm::PHINode *Phi) {
@@ -96,14 +103,16 @@ llvm::Value *CGProcedure::optimizePhi(llvm::PHINode *Phi) {
   return Same;
 }
 
-void CGProcedure::sealBlock(llvm::BasicBlock *BB) {
-  assert(!CurrentDef[BB].Sealed &&
-         "Attempt to seal already sealed block");
-  for (auto PhiDecl : CurrentDef[BB].IncompletePhis) {
-    addPhiOperands(BB, PhiDecl.second, PhiDecl.first);
-  }
-  CurrentDef[BB].IncompletePhis.clear();
-  CurrentDef[BB].Sealed = true;
+void CGProcedure::sealBlock(llvm::BasicBlock* BB)
+{
+	assert(!CurrentDef[BB].Sealed && "Attempt to seal already sealed block");
+
+	for (auto PhiDecl : CurrentDef[BB].IncompletePhis)
+	{
+		addPhiOperands(BB, PhiDecl.second, PhiDecl.first);
+	}
+	CurrentDef[BB].IncompletePhis.clear();
+	CurrentDef[BB].Sealed = true;
 }
 
 void CGProcedure::writeVariable(llvm::BasicBlock *BB,
@@ -128,28 +137,30 @@ void CGProcedure::writeVariable(llvm::BasicBlock *BB,
     llvm::report_fatal_error("Unsupported declaration");
 }
 
-llvm::Value *CGProcedure::readVariable(llvm::BasicBlock *BB,
-                                       Decl *D) {
-  if (auto *V = llvm::dyn_cast<VariableDeclaration>(D)) {
-    if (V->getEnclosingDecl() == Proc)
-      return readLocalVariable(BB, D);
-    else if (V->getEnclosingDecl() ==
-             CGM.getModuleDeclaration()) {
-      return Builder.CreateLoad(mapType(D),
-                                CGM.getGlobal(D));
-    } else
-      llvm::report_fatal_error(
-          "Nested procedures not yet supported");
-  } else if (auto *FP =
-                 llvm::dyn_cast<FormalParameterDeclaration>(
-                     D)) {
-    if (FP->isVar()) {
-      return Builder.CreateLoad(mapType(FP, false),
-                                FormalParams[FP]);
-    } else
-      return readLocalVariable(BB, D);
-  } else
-    llvm::report_fatal_error("Unsupported declaration");
+llvm::Value* CGProcedure::readVariable(llvm::BasicBlock* BB, Decl* D)
+{
+	if (auto* V = llvm::dyn_cast<VariableDeclaration>(D))
+	{
+		if (V->getEnclosingDecl() == Proc)
+			return readLocalVariable(BB, D);
+		else if (V->getEnclosingDecl() == CGM.getModuleDeclaration())
+		{
+			return Builder.CreateLoad(mapType(D), CGM.getGlobal(D));
+		}
+		else
+			llvm::report_fatal_error("Nested procedures not yet supported");
+	}
+	else if (auto* FP = llvm::dyn_cast<FormalParameterDeclaration>(D))
+	{
+		if (FP->isVar())
+		{
+			return Builder.CreateLoad(mapType(FP, false), FormalParams[FP]);
+		}
+		else
+			return readLocalVariable(BB, D);
+	}
+	else
+		llvm::report_fatal_error("Unsupported declaration");
 }
 
 llvm::Type *CGProcedure::mapType(Decl *Decl,
@@ -307,75 +318,82 @@ llvm::Value *CGProcedure::emitExpr(Expr *E) {
   llvm::report_fatal_error("Unsupported expression");
 }
 
-void CGProcedure::emitStmt(AssignmentStatement *Stmt) {
-  auto *Val = emitExpr(Stmt->getExpr());
-  writeVariable(Curr, Stmt->getVar(), Val);
+void CGProcedure::emitStmt(AssignmentStatement* Stmt)
+{
+	auto* Val = emitExpr(Stmt->getExpr());
+	writeVariable(Curr, Stmt->getVar(), Val);
 }
 
-void CGProcedure::emitStmt(ProcedureCallStatement *Stmt) {
-  llvm::report_fatal_error("not implemented");
+void CGProcedure::emitStmt(ProcedureCallStatement* Stmt)
+{
+	llvm::report_fatal_error("not implemented");
 }
 
-void CGProcedure::emitStmt(IfStatement *Stmt) {
-  bool HasElse = Stmt->getElseStmts().size() > 0;
+void CGProcedure::emitStmt(IfStatement* Stmt)
+{
+	bool HasElse = Stmt->getElseStmts().size() > 0;
 
-  // Create the required basic blocks.
-  llvm::BasicBlock *IfBB = llvm::BasicBlock::Create(
-      CGM.getLLVMCtx(), "if.body", Fn);
-  llvm::BasicBlock *ElseBB =
-      HasElse ? llvm::BasicBlock::Create(CGM.getLLVMCtx(),
-                                         "else.body", Fn)
-              : nullptr;
-  llvm::BasicBlock *AfterIfBB = llvm::BasicBlock::Create(
-      CGM.getLLVMCtx(), "after.if", Fn);
+	// Create the required basic blocks.
+	llvm::BasicBlock* IfBB =
+		llvm::BasicBlock::Create(CGM.getLLVMCtx(), "if.body", Fn);
+	llvm::BasicBlock* ElseBB =
+		HasElse ? llvm::BasicBlock::Create(CGM.getLLVMCtx(), "else.body", Fn)
+				: nullptr;
+	llvm::BasicBlock* AfterIfBB =
+		llvm::BasicBlock::Create(CGM.getLLVMCtx(), "after.if", Fn);
 
-  llvm::Value *Cond = emitExpr(Stmt->getCond());
-  Builder.CreateCondBr(Cond, IfBB,
-                       HasElse ? ElseBB : AfterIfBB);
-  sealBlock(Curr);
+	llvm::Value* Cond = emitExpr(Stmt->getCond());
+	Builder.CreateCondBr(Cond, IfBB, HasElse ? ElseBB : AfterIfBB);
+	sealBlock(Curr);
 
-  setCurr(IfBB);
-  emit(Stmt->getIfStmts());
-  if (!Curr->getTerminator()) {
-    Builder.CreateBr(AfterIfBB);
-  }
-  sealBlock(Curr);
+	setCurr(IfBB);
+	emit(Stmt->getIfStmts());
+	if (!Curr->getTerminator())
+	{
+		Builder.CreateBr(AfterIfBB);
+	}
+	sealBlock(Curr);
 
-  if (HasElse) {
-    setCurr(ElseBB);
-    emit(Stmt->getElseStmts());
-    if (!Curr->getTerminator()) {
-      Builder.CreateBr(AfterIfBB);
-    }
-    sealBlock(Curr);
-  }
-  setCurr(AfterIfBB);
+	if (HasElse)
+	{
+		setCurr(ElseBB);
+		emit(Stmt->getElseStmts());
+		if (!Curr->getTerminator())
+		{
+			Builder.CreateBr(AfterIfBB);
+		}
+		sealBlock(Curr);
+	}
+	setCurr(AfterIfBB);
 }
 
-void CGProcedure::emitStmt(WhileStatement *Stmt) {
-  // The basic block for the condition.
-  llvm::BasicBlock *WhileCondBB = llvm::BasicBlock::Create(
-      CGM.getLLVMCtx(), "while.cond", Fn);
-  // The basic block for the while body.
-  llvm::BasicBlock *WhileBodyBB = llvm::BasicBlock::Create(
-      CGM.getLLVMCtx(), "while.body", Fn);
-  // The basic block after the while statement.
-  llvm::BasicBlock *AfterWhileBB = llvm::BasicBlock::Create(
-      CGM.getLLVMCtx(), "after.while", Fn);
+void CGProcedure::emitStmt(WhileStatement* Stmt)
+{
+	// The basic block for the condition.
+	llvm::BasicBlock* WhileCondBB =
+		llvm::BasicBlock::Create(CGM.getLLVMCtx(), "while.cond", Fn);
+	// The basic block for the while body.
+	llvm::BasicBlock* WhileBodyBB =
+		llvm::BasicBlock::Create(CGM.getLLVMCtx(), "while.body", Fn);
+	// The basic block after the while statement.
+	llvm::BasicBlock* AfterWhileBB =
+		llvm::BasicBlock::Create(CGM.getLLVMCtx(), "after.while", Fn);
 
-  Builder.CreateBr(WhileCondBB);
-  sealBlock(Curr);
-  setCurr(WhileCondBB);
-  llvm::Value *Cond = emitExpr(Stmt->getCond());
-  Builder.CreateCondBr(Cond, WhileBodyBB, AfterWhileBB);
+	Builder.CreateBr(WhileCondBB);
+	sealBlock(Curr);
+	setCurr(WhileCondBB);
+	//这里调用readVariable -> readLocalVariable 
+	//如果不在此块内，调用readLocalVariableRecursive
+	llvm::Value* Cond = emitExpr(Stmt->getCond());
+	Builder.CreateCondBr(Cond, WhileBodyBB, AfterWhileBB);
 
-  setCurr(WhileBodyBB);
-  emit(Stmt->getWhileStmts());
-  Builder.CreateBr(WhileCondBB);
-  sealBlock(WhileCondBB);
-  sealBlock(Curr);
+	setCurr(WhileBodyBB);
+	emit(Stmt->getWhileStmts());
+	Builder.CreateBr(WhileCondBB);
+	sealBlock(WhileCondBB);
+	sealBlock(Curr);
 
-  setCurr(AfterWhileBB);
+	setCurr(AfterWhileBB);
 }
 
 void CGProcedure::emitStmt(ReturnStatement *Stmt) {
@@ -387,23 +405,23 @@ void CGProcedure::emitStmt(ReturnStatement *Stmt) {
   }
 }
 
-void CGProcedure::emit(const StmtList &Stmts) {
-  for (auto *S : Stmts) {
-    if (auto *Stmt = llvm::dyn_cast<AssignmentStatement>(S))
-      emitStmt(Stmt);
-    else if (auto *Stmt =
-                 llvm::dyn_cast<ProcedureCallStatement>(S))
-      emitStmt(Stmt);
-    else if (auto *Stmt = llvm::dyn_cast<IfStatement>(S))
-      emitStmt(Stmt);
-    else if (auto *Stmt = llvm::dyn_cast<WhileStatement>(S))
-      emitStmt(Stmt);
-    else if (auto *Stmt =
-                 llvm::dyn_cast<ReturnStatement>(S))
-      emitStmt(Stmt);
-    else
-      llvm_unreachable("Unknown statement");
-  }
+void CGProcedure::emit(const StmtList& Stmts)
+{
+	for (auto* S : Stmts)
+	{
+		if (auto* Stmt = llvm::dyn_cast<AssignmentStatement>(S))
+			emitStmt(Stmt);
+		else if (auto* Stmt = llvm::dyn_cast<ProcedureCallStatement>(S))
+			emitStmt(Stmt);
+		else if (auto* Stmt = llvm::dyn_cast<IfStatement>(S))
+			emitStmt(Stmt);
+		else if (auto* Stmt = llvm::dyn_cast<WhileStatement>(S))
+			emitStmt(Stmt);
+		else if (auto* Stmt = llvm::dyn_cast<ReturnStatement>(S))
+			emitStmt(Stmt);
+		else
+			llvm_unreachable("Unknown statement");
+	}
 }
 
 void CGProcedure::run(ProcedureDeclaration *Proc) {

@@ -15,6 +15,7 @@ set(LLVM_LINK_COMPONENTS
   Support
   TransformUtils
   Vectorize
+  TargetParser
 )
 
 add_tinylang_tool(tinylang
@@ -29,3 +30,8 @@ target_link_libraries(tinylang
   tinylangParser
   tinylangSema
   )
+
+set_target_properties(tinylang PROPERTIES
+	RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
+)
+

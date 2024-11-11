@@ -24,4 +24,5 @@ public:
                                     std::string FileName);
 };
 } // namespace tinylang
+
 #endif
